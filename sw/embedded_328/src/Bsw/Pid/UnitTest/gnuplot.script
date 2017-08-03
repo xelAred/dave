@@ -1,0 +1,3 @@
+plot 'gnuplot.csv' using 1:2 with lines, 'gnuplot.csv' using 1:3 with lines
+
+pause -1 "Hit return in to continue"

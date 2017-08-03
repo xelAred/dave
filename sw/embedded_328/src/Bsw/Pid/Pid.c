@@ -1,28 +1,24 @@
 #include "Std_Types.h"
 #include "Pid.h"
 
-void Pid_Init(Pid_DataType *pid)
+void Pid_Init(Pid_DataType *pid, float _SampleRateMs, float Min, float Max)
 {
-    pid->Kp = 0.0f;
+    pid->Kp = 1.0f;
     pid->Ki = 0.0f;
     pid->Kd = 0.0f;
     pid->Error = 0.0f;
     pid->ErrorOld = 0.0f;
     pid->ErrorSum = 0.0f;
-    pid->SampleTimeMs = 0.0f;
+    pid->SampleTimeMs = _SampleRateMs;
     pid->Setpoint = 0.0;
-    pid->MaxLimit = 100.0f;
-    pid->MinLimit = 0.0f;
+    pid->MaxLimit = Max;
+    pid->MinLimit = Min;
+    pid->CalcI = 0.0;
 }
 
 void Pid_SetSetpoint(Pid_DataType *pid, float setpoint)
 {
     pid->Setpoint = setpoint;
-}
-
-void Pid_SetSampleRateMs(Pid_DataType *pid, float _SampleRateMs)
-{
-    pid->SampleTimeMs = _SampleRateMs;
 }
 
 void Pid_SetParameters(Pid_DataType *pid, float _p, float _i, float _d)
@@ -32,21 +28,22 @@ void Pid_SetParameters(Pid_DataType *pid, float _p, float _i, float _d)
     pid->Kd = _d / pid->SampleTimeMs;
 }
 
-void Pid_Handler(Pid_DataType *pid, float CurrentValue)
+float Pid_Handler(Pid_DataType *pid)
 {
-    float CalcI = 0.0;
-
-    pid->Error = pid->Setpoint - CurrentValue;
-    CalcI += (CalcI * pid->Error);
-    if(CalcI > pid->MaxLimit)
+    float input = pid->Output;
+    pid->Error = pid->Setpoint - input;
+    pid->CalcI += (pid->Ki * pid->Error);
+    if(pid->CalcI > pid->MaxLimit)
     {
-        CalcI = pid->MaxLimit;
+        pid->CalcI = pid->MaxLimit;
     }
-    else if(CalcI < pid->MinLimit)
+    else if(pid->CalcI < pid->MinLimit)
     {
-        CalcI = pid->MinLimit;
+        pid->CalcI = pid->MinLimit;
     }
-    pid->Output = pid->Kp * pid->Error + CalcI - pid->Kd * (CurrentValue - pid->LastInput);
+    pid->Output = pid->Kp * pid->Error;
+    pid->Output += pid->CalcI;
+    pid->Output -= pid->Kd * (input - pid->LastInput);
 
     if(pid->Output > pid->MaxLimit)
     {
@@ -57,7 +54,8 @@ void Pid_Handler(Pid_DataType *pid, float CurrentValue)
         pid->Output = pid->MinLimit;
     }
 
-    pid->LastInput = CurrentValue;
+    pid->LastInput = input;
+    return pid->Output;
 }
 
 float Pid_GetOutput(Pid_DataType *pid)
