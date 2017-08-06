@@ -13,7 +13,6 @@ void Pid_Init(Pid_DataType *pid, float _SampleRateMs, float Min, float Max)
     pid->Setpoint = 0.0;
     pid->MaxLimit = Max;
     pid->MinLimit = Min;
-    pid->CalcI = 0.0;
 }
 
 void Pid_SetSetpoint(Pid_DataType *pid, float setpoint)
@@ -24,26 +23,19 @@ void Pid_SetSetpoint(Pid_DataType *pid, float setpoint)
 void Pid_SetParameters(Pid_DataType *pid, float _p, float _i, float _d)
 {
     pid->Kp = _p;
-    pid->Ki = _i * pid->SampleTimeMs;
-    pid->Kd = _d / pid->SampleTimeMs;
+    pid->Ki = _i;
+    pid->Kd = _d;
 }
 
 float Pid_Handler(Pid_DataType *pid)
 {
     float input = pid->Output;
     pid->Error = pid->Setpoint - input;
-    pid->CalcI += (pid->Ki * pid->Error);
-    if(pid->CalcI > pid->MaxLimit)
-    {
-        pid->CalcI = pid->MaxLimit;
-    }
-    else if(pid->CalcI < pid->MinLimit)
-    {
-        pid->CalcI = pid->MinLimit;
-    }
-    pid->Output = pid->Kp * pid->Error;
-    pid->Output += pid->CalcI;
-    pid->Output -= pid->Kd * (input - pid->LastInput);
+    pid->ErrorSum += (pid->Error);
+
+    pid->Output =  pid->Kp * pid->Error;
+    pid->Output += pid->Ki * pid->SampleTimeMs * pid->ErrorSum;
+    pid->Output += pid->Kd * (pid->Error - pid->ErrorOld)/pid->SampleTimeMs;
 
     if(pid->Output > pid->MaxLimit)
     {
@@ -54,7 +46,7 @@ float Pid_Handler(Pid_DataType *pid)
         pid->Output = pid->MinLimit;
     }
 
-    pid->LastInput = input;
+    pid->ErrorOld = pid->Error;
     return pid->Output;
 }
 

@@ -7,7 +7,7 @@ comp:
 
 run:
 	./PidTest > gnuplot.csv
-	gnuplot -c gnuplot.script
+	gnuplot -p -c gnuplot.script
 
 clean:
 	rm *.o PidTest gnuplot.csv

@@ -17,7 +17,6 @@ typedef struct
     float MaxLimit;
     float MinLimit;
     float LastInput;
-    float CalcI;
 } Pid_DataType;
 
 void Pid_Init(Pid_DataType *pid, float _SampleRateMs, float Min, float Max);
