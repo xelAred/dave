@@ -1,0 +1,3 @@
+[submodule "dave/lib/SoftwareSerial9"]
+	path = dave/lib/SoftwareSerial9
+	url = https://github.com/siredmar/SoftwareSerial9.git
