@@ -14,10 +14,13 @@
 #include "IMU.h"
 #include "I2C.h"
 
-/* Returns 0 on sucess, -1 on error */
-int IMU::Init(uint8_t IMUAddress)
+IMU::IMU(uint8_t Address)
 {
-    this->IMUAddress = IMUAddress;
+    this->IMUAddress = Address;
+}
+/* Returns 0 on sucess, -1 on error */
+int IMU::Init()
+{
     i2cData[0] = 7; // Set the sample rate to 1000Hz - 8kHz/(7+1) = 1000Hz
     i2cData[1] = 0x00; // Disable FSYNC and set 260 Hz Acc filtering, 256 Hz Gyro filtering, 8 KHz sampling
     i2cData[2] = 0x00; // Set Gyro Full Scale Range to ±250deg/s

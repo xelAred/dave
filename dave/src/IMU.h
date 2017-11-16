@@ -3,7 +3,9 @@
 class IMU
 {
     public:
-        int Init(uint8_t Address);
+        IMU(uint8_t Address);
+        ~IMU(){};
+        int Init();
         void Process();
         double GetAngleX();
         double GetAngleY();

@@ -1,5 +1,3 @@
-#include "I2C.h"
-#include "Arduino.h"
 /* Copyright (C) 2012 Kristian Lauszus, TKJ Electronics. All rights reserved.
 
  This software may be distributed and modified under the terms of the GNU
@@ -16,6 +14,9 @@
  Web      :  http://www.tkjelectronics.com
  e-mail   :  kristianl@tkjelectronics.com
  */
+
+#include "I2C.h"
+#include "Arduino.h"
 
 const uint8_t IMUAddress = 0x68; // AD0 is logic low on the PCB
 const uint16_t I2C_TIMEOUT = 1000; // Used to check for errors in I2C communication
