@@ -14,8 +14,27 @@ the GPL2 ("Copyleft").
 #include "IMU.h"
 #include "Wheel.h"
 #include <PID_v1.h>
+#include <EEPROM.h>
 
+void EEPROM_writeDouble(int ee, double value)
+{
+   byte* p = (byte*)(void*)&value;
+   for (int i = 0; i < sizeof(value); i++)
+       EEPROM.write(ee++, *p++);
+}
 
+double EEPROM_readDouble(int ee)
+{
+   double value = 0.0;
+   byte* p = (byte*)(void*)&value;
+   for (int i = 0; i < sizeof(value); i++)
+       *p++ = EEPROM.read(ee++);
+   return value;
+}
+#define EEPROM_KP_ADDRESS 0
+#define EEPROM_KI_ADDRESS 4
+#define EEPROM_KD_ADDRESS 8
+#define EEPROM_LIMIT_ADDRESS 12
 //SDA - Pin A4
 //SCL - Pin A5
 IMU Imu(0x68);
@@ -25,16 +44,25 @@ Wheel LeftWheel(&LeftWheelSerial, 31847, false);
 Wheel RightWheel(&RightWheelSerial, 31847, false);
 
 double Setpoint, Input, Output;
-double consKp=50, consKi=0.0, consKd=0.0;
+// double consKp=20, consKi=0.0, consKd=0.0, offset=0.0;
+double consKp, consKd, consKi, offset=0.0;
+double AngleOffset=1.1;
 PID AngleControl(&Input, &Output, &Setpoint, consKp, consKi, consKd, DIRECT);
 int remoteMode = 1;
 byte received_byte = 0;
-double LimitUp = 100;
-double LimitDown = -100;
+double Limit;
+
 String inString = "";
+unsigned int delayUs = 1000;
+unsigned int microSeconds = 0;
 
 void setup()
 {
+    consKp = EEPROM_readDouble(EEPROM_KP_ADDRESS);
+    consKi = EEPROM_readDouble(EEPROM_KI_ADDRESS);
+    consKd = EEPROM_readDouble(EEPROM_KD_ADDRESS);
+    Limit = EEPROM_readDouble(EEPROM_LIMIT_ADDRESS);
+
     Serial.begin(115200);
     Wire.begin();
     #if ARDUINO >= 157
@@ -48,8 +76,9 @@ void setup()
         Serial.println("Error initializing IMU");
     }
     //turn the PID on
+    AngleControl.SetOutputLimits(-Limit, Limit);
+    AngleControl.SetTunings(consKp, consKi, consKd);
     AngleControl.SetMode(AUTOMATIC);
-    AngleControl.SetOutputLimits(LimitDown, LimitUp);
 }
 
 void loop()
@@ -68,6 +97,8 @@ void loop()
             {
                 inString.remove(0, 1);
                 consKp = inString.toFloat();
+                EEPROM_writeDouble(EEPROM_KP_ADDRESS, consKp);
+                AngleControl.SetTunings(consKp, consKi, consKd);
                 Serial.print("P: ");
                 Serial.print(consKp);
                 Serial.print(", I: ");
@@ -80,6 +111,8 @@ void loop()
             {
                 inString.remove(0, 1);
                 consKi = inString.toFloat();
+                EEPROM_writeDouble(EEPROM_KI_ADDRESS, consKi);
+                AngleControl.SetTunings(consKp, consKi, consKd);
                 Serial.print("P: ");
                 Serial.print(consKp);
                 Serial.print(", I: ");
@@ -92,6 +125,8 @@ void loop()
             {
                 inString.remove(0, 1);
                 consKd = inString.toFloat();
+                EEPROM_writeDouble(EEPROM_KD_ADDRESS, consKd);
+                AngleControl.SetTunings(consKp, consKi, consKd);
                 Serial.print("P: ");
                 Serial.print(consKp);
                 Serial.print(", I: ");
@@ -114,19 +149,19 @@ void loop()
                 Serial.print(", D: ");
                 Serial.print(consKd);
                 Serial.print(" Limits: ");
-                Serial.print(LimitUp);
+                Serial.print(Limit);
                 Serial.print("\r\n");
             }
 
             else if(inString[0] == 'L' || inString[0] == 'l')
             {
                 inString.remove(0, 1);
-                LimitUp = inString.toFloat();
-                LimitDown = -LimitUp;
+                Limit = inString.toFloat();
+                EEPROM_writeDouble(EEPROM_LIMIT_ADDRESS, Limit);
                 Serial.print("Limits: ");
-                Serial.print(LimitUp);
+                Serial.print(Limit);
                 Serial.print("\r\n");
-                AngleControl.SetOutputLimits(LimitDown, LimitUp);
+                AngleControl.SetOutputLimits(-Limit, Limit);
             }
             else
             {
@@ -140,19 +175,56 @@ void loop()
     }
 
     Setpoint = 0.0;
-    // signed int spWhl=0;
-    // signed int spWhr=0;
+    static signed short spWhl=0;
+    static signed short spWhr=0;
+    static signed short spWhlTmp=0;
+    static signed short spWhrTmp=0;
 
     Imu.Process();
     Input = Imu.GetAngleY();
-    AngleControl.Compute();
+    Input -= AngleOffset;
+    // if(abs(Input) > 0.8)
+    // {
+      AngleControl.Compute();
+    // }
+    // else
+    // {
+    //     Output = 0.0;
+    // }
 
-    Serial.print(Input);
-    Serial.print("\tPID: ");
-    Serial.print(-Output);
-    Serial.print("\r\n");
+    if(Output < 0.0)
+    {
+      // Output -= offset;
+        spWhlTmp = (int16_t)Output - (int16_t)offset;
+        spWhrTmp = (int16_t)Output - (int16_t)offset;
+    }
+    else if(Output > 0.0)
+    {
+      // Output += offset;
+        spWhlTmp = (int16_t)Output + (int16_t)offset;
+        spWhrTmp = (int16_t)Output + (int16_t)offset;
+    }
+    else
+    {
 
-    RightWheel.SetSpeed((int16_t)-Output);
-    LeftWheel.SetSpeed((int16_t)-Output);
-    delayMicroseconds(300);
+    }
+
+
+
+    // RightWheel.SetSpeed((int16_t)Output);
+    // LeftWheel.SetSpeed((int16_t)Output);
+    delayMicroseconds(delayUs);
+    microSeconds += delayUs;
+    if(microSeconds >= 10000)
+    {
+      microSeconds = 0;
+      // Serial.print(Input);
+      // Serial.print("\tPID: ");
+      // Serial.print(spWhlTmp);
+      // Serial.print("\r\n");
+      spWhl = spWhlTmp;
+      spWhr = spWhrTmp;
+    }
+    RightWheel.SetSpeed(spWhl);
+    LeftWheel.SetSpeed(spWhr);
 }
