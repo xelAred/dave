@@ -35,6 +35,7 @@ double EEPROM_readDouble(int ee)
 #define EEPROM_KI_ADDRESS 4
 #define EEPROM_KD_ADDRESS 8
 #define EEPROM_LIMIT_ADDRESS 12
+#define EEPROM_ANGLE_OFFSET_ADDRESS 16
 //SDA - Pin A4
 //SCL - Pin A5
 IMU Imu(0x68);
@@ -46,7 +47,7 @@ Wheel RightWheel(&RightWheelSerial, 31847, false);
 double Setpoint, Input, Output;
 // double consKp=20, consKi=0.0, consKd=0.0, offset=0.0;
 double consKp, consKd, consKi, offset=0.0;
-double AngleOffset=1.1;
+double AngleOffset;
 PID AngleControl(&Input, &Output, &Setpoint, consKp, consKi, consKd, DIRECT);
 int remoteMode = 1;
 byte received_byte = 0;
@@ -55,13 +56,15 @@ double Limit;
 String inString = "";
 unsigned int delayUs = 1000;
 unsigned int microSeconds = 0;
+int SerialOutput = 0;
 
 void setup()
 {
-    consKp = EEPROM_readDouble(EEPROM_KP_ADDRESS);
-    consKi = EEPROM_readDouble(EEPROM_KI_ADDRESS);
-    consKd = EEPROM_readDouble(EEPROM_KD_ADDRESS);
-    Limit = EEPROM_readDouble(EEPROM_LIMIT_ADDRESS);
+    consKp = (double)EEPROM_readDouble(EEPROM_KP_ADDRESS);
+    consKi = (double)EEPROM_readDouble(EEPROM_KI_ADDRESS);
+    consKd = (double)EEPROM_readDouble(EEPROM_KD_ADDRESS);
+    Limit = (double)EEPROM_readDouble(EEPROM_LIMIT_ADDRESS);
+    AngleOffset = (double)EEPROM_readDouble(EEPROM_ANGLE_OFFSET_ADDRESS);
 
     Serial.begin(115200);
     Wire.begin();
@@ -77,8 +80,22 @@ void setup()
     }
     //turn the PID on
     AngleControl.SetOutputLimits(-Limit, Limit);
+    AngleControl.SetSampleTime(1);
     AngleControl.SetTunings(consKp, consKi, consKd);
     AngleControl.SetMode(AUTOMATIC);
+}
+
+
+double roundFromZero(double in)
+{
+    if(((in - (double)(int)in)/ 2.0) > 0.5)
+    {
+        return (double) ((int)in + 1);
+    }
+    else
+    {
+            return (double)((int)in);
+    }
 }
 
 void loop()
@@ -105,6 +122,10 @@ void loop()
                 Serial.print(consKi);
                 Serial.print(", D: ");
                 Serial.print(consKd);
+                Serial.print(", Limits: ");
+                Serial.print(Limit);
+                Serial.print(", AngleOffset: ");
+                Serial.print(AngleOffset);
                 Serial.print("\r\n");
             }
             else if(inString[0] == 'I' || inString[0] == 'i')
@@ -119,6 +140,10 @@ void loop()
                 Serial.print(consKi);
                 Serial.print(", D: ");
                 Serial.print(consKd);
+                Serial.print(", Limits: ");
+                Serial.print(Limit);
+                Serial.print(", AngleOffset: ");
+                Serial.print(AngleOffset);
                 Serial.print("\r\n");
             }
             else if(inString[0] == 'D' || inString[0] == 'd')
@@ -133,12 +158,18 @@ void loop()
                 Serial.print(consKi);
                 Serial.print(", D: ");
                 Serial.print(consKd);
+                Serial.print(", Limits: ");
+                Serial.print(Limit);
+                Serial.print(", AngleOffset: ");
+                Serial.print(AngleOffset);
                 Serial.print("\r\n");
             }
-            else if(inString[0] == 'Z' || inString[0] == 'z')
+            else if(inString[0] == 'O' || inString[0] == 'o')
             {
-                remoteMode = 1;
-                Serial.println("Enable remote control");
+                if(SerialOutput == 1)
+                    SerialOutput = 0;
+                else
+                    SerialOutput = 1;
             }
             else if(inString[0] == 'R' || inString[0] == 'r')
             {
@@ -148,11 +179,12 @@ void loop()
                 Serial.print(consKi);
                 Serial.print(", D: ");
                 Serial.print(consKd);
-                Serial.print(" Limits: ");
+                Serial.print(", Limits: ");
                 Serial.print(Limit);
+                Serial.print(", AngleOffset: ");
+                Serial.print(AngleOffset);
                 Serial.print("\r\n");
             }
-
             else if(inString[0] == 'L' || inString[0] == 'l')
             {
                 inString.remove(0, 1);
@@ -162,6 +194,15 @@ void loop()
                 Serial.print(Limit);
                 Serial.print("\r\n");
                 AngleControl.SetOutputLimits(-Limit, Limit);
+            }
+            else if(inString[0] == 'F' || inString[0] == 'f')
+            {
+                inString.remove(0, 1);
+                AngleOffset = inString.toFloat();
+                EEPROM_writeDouble(EEPROM_ANGLE_OFFSET_ADDRESS,AngleOffset);
+                Serial.print("AngleOffset: ");
+                Serial.print(AngleOffset);
+                Serial.print("\r\n");
             }
             else
             {
@@ -209,19 +250,25 @@ void loop()
 
     }
 
+    Output = roundFromZero(Output);
 
 
     // RightWheel.SetSpeed((int16_t)Output);
     // LeftWheel.SetSpeed((int16_t)Output);
     delayMicroseconds(delayUs);
     microSeconds += delayUs;
-    if(microSeconds >= 10000)
+    //if(microSeconds >= 10000)
     {
       microSeconds = 0;
-      // Serial.print(Input);
-      // Serial.print("\tPID: ");
-      // Serial.print(spWhlTmp);
-      // Serial.print("\r\n");
+      if(SerialOutput == 1)
+      {
+          Serial.print(Input);
+          Serial.print(", ");
+          Serial.print(spWhlTmp);
+          Serial.print(", ");
+          Serial.print(Output);
+          Serial.print("\r\n");
+      }
       spWhl = spWhlTmp;
       spWhr = spWhrTmp;
     }
