@@ -54,7 +54,7 @@ byte received_byte = 0;
 double Limit;
 
 String inString = "";
-unsigned int delayUs = 1000;
+unsigned int delayUs = 200;
 unsigned int microSeconds = 0;
 int SerialOutput = 0;
 
@@ -80,9 +80,10 @@ void setup()
     }
     //turn the PID on
     AngleControl.SetOutputLimits(-Limit, Limit);
-    AngleControl.SetSampleTime(1);
+    AngleControl.SetSampleTime(delayUs);
     AngleControl.SetTunings(consKp, consKi, consKd);
     AngleControl.SetMode(AUTOMATIC);
+    Setpoint = 0.0;
 }
 
 
@@ -204,6 +205,27 @@ void loop()
                 Serial.print(AngleOffset);
                 Serial.print("\r\n");
             }
+            else if(inString[0] == '+')
+            {
+                Setpoint += 0.5;
+                Serial.print("Setpoint: ");
+                Serial.print(Setpoint);
+                Serial.print("\r\n");
+            }
+            else if(inString[0] == '-')
+            {
+                Setpoint -= 0.5;
+                Serial.print("Setpoint: ");
+                Serial.print(Setpoint);
+                Serial.print("\r\n");
+            }
+            else if(inString[0] == '0')
+            {
+                Setpoint = 0;
+                Serial.print("Setpoint: ");
+                Serial.print(Setpoint);
+                Serial.print("\r\n");
+            }
             else
             {
 
@@ -215,7 +237,6 @@ void loop()
 
     }
 
-    Setpoint = 0.0;
     static signed short spWhl=0;
     static signed short spWhr=0;
     static signed short spWhlTmp=0;
@@ -252,26 +273,25 @@ void loop()
 
     Output = roundFromZero(Output);
 
-
     // RightWheel.SetSpeed((int16_t)Output);
     // LeftWheel.SetSpeed((int16_t)Output);
     delayMicroseconds(delayUs);
-    microSeconds += delayUs;
+    //microSeconds += delayUs;
     //if(microSeconds >= 10000)
+    // {
+    //   microSeconds = 0;
+    if(SerialOutput == 1)
     {
-      microSeconds = 0;
-      if(SerialOutput == 1)
-      {
-          Serial.print(Input);
-          Serial.print(", ");
-          Serial.print(spWhlTmp);
-          Serial.print(", ");
-          Serial.print(Output);
-          Serial.print("\r\n");
-      }
-      spWhl = spWhlTmp;
-      spWhr = spWhrTmp;
+        Serial.print(Input);
+        Serial.print(", ");
+        Serial.print(spWhlTmp);
+        Serial.print(", ");
+        Serial.print(Output);
+        Serial.print("\r\n");
     }
+    spWhl = spWhlTmp;
+    spWhr = spWhrTmp;
+    // }
     RightWheel.SetSpeed(spWhl);
     LeftWheel.SetSpeed(spWhr);
 }
